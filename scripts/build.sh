@@ -120,6 +120,71 @@ checkout_sources() {
     SOURCE_DATE_EPOCH="$(git -C "${SOURCE_DIR}/opencv" show -s --format=%ct HEAD)"
 }
 
+patch_opencv_ffmpeg_compat() {
+    local ffmpeg_impl="${SOURCE_DIR}/opencv/modules/videoio/src/cap_ffmpeg_impl.hpp"
+
+    python3 - "${ffmpeg_impl}" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+
+old_close = """#ifdef CV_FFMPEG_CODECPAR
+        avcodec_close( context );
+#endif"""
+new_close = """#ifdef CV_FFMPEG_CODECPAR
+// avcodec_close removed in FFmpeg release 8.0
+# if (LIBAVCODEC_BUILD < CALC_FFMPEG_VERSION(61, 9, 108))
+        avcodec_close( context );
+# endif
+#endif"""
+
+old_rotation = """#if LIBAVFORMAT_BUILD >= CALC_FFMPEG_VERSION(57, 68, 100)
+    const uint8_t *data = 0;
+    data = av_stream_get_side_data(video_st, AV_PKT_DATA_DISPLAYMATRIX, NULL);
+    if (data)
+    {
+        rotation_angle = -cvRound(av_display_rotation_get((const int32_t*)data));
+        if (rotation_angle < 0)
+            rotation_angle += 360;
+    }"""
+new_rotation = """#if LIBAVFORMAT_BUILD >= CALC_FFMPEG_VERSION(57, 68, 100)
+    const uint8_t *data = 0;
+    // av_stream_get_side_data removed in FFmpeg release 8.0
+# if (LIBAVCODEC_BUILD < CALC_FFMPEG_VERSION(61, 9, 108))
+    data = av_stream_get_side_data(video_st, AV_PKT_DATA_DISPLAYMATRIX, NULL);
+# else
+    AVPacketSideData* sd = video_st->codecpar->coded_side_data;
+    int nb_sd = video_st->codecpar->nb_coded_side_data;
+    if (sd && nb_sd > 0)
+    {
+        const AVPacketSideData* mtx = av_packet_side_data_get(sd,  nb_sd, AV_PKT_DATA_DISPLAYMATRIX);
+        if (mtx)
+        {
+            data = mtx->data;
+        }
+    }
+# endif
+    if (data)
+    {
+        rotation_angle = -cvRound(av_display_rotation_get((const int32_t*)data));
+        if (rotation_angle < 0)
+            rotation_angle += 360;
+    }"""
+
+for old, new, label in (
+    (old_close, new_close, "avcodec_close compatibility"),
+    (old_rotation, new_rotation, "rotation side-data compatibility"),
+):
+    if old not in src:
+        raise RuntimeError(f"Could not find expected block for {label}")
+    src = src.replace(old, new, 1)
+
+path.write_text(src)
+PY
+}
+
 configure_and_build() {
     local python_include python_library numpy_include
     python_include="$(python3.14 -c 'import sysconfig; print(sysconfig.get_path("include"))')"
@@ -332,6 +397,7 @@ main() {
     build_installer_libxml
     install_cuda
     checkout_sources
+    patch_opencv_ffmpeg_compat
     configure_and_build
     verify_build
     package_build
