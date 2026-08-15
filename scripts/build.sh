@@ -148,7 +148,7 @@ configure_and_build() {
         -DCUDA_HOST_COMPILER=/usr/bin/g++-14 \
         -DCUDA_ARCH_BIN=5.0 \
         -DCUDA_ARCH_PTX= \
-        -DCUDA_NVCC_FLAGS=-Xcompiler=-U_GNU_SOURCE \
+        "-DCUDA_NVCC_FLAGS=-I${ROOT_DIR}/compat/glibc-cuda-12.9" \
         -DWITH_CUBLAS=ON \
         -DWITH_CUFFT=ON \
         -DWITH_CUDNN=OFF \
