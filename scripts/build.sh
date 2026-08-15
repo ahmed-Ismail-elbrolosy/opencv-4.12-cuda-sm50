@@ -141,7 +141,6 @@ configure_and_build() {
         -DOPENCV_EXTRA_MODULES_PATH="${SOURCE_DIR}/opencv_contrib/modules" \
         -DOPENCV_GENERATE_PKGCONFIG=ON \
         -DBUILD_SHARED_LIBS=ON \
-        -DENABLE_CONFIG_VERIFICATION=ON \
         -DENABLE_CUDA_FIRST_CLASS_LANGUAGE=OFF \
         -DWITH_CUDA=ON \
         -DCUDA_TOOLKIT_ROOT_DIR="${CUDA_ROOT}" \
@@ -201,6 +200,9 @@ verify_build() {
     grep -Eq 'NVIDIA GPU arch:[[:space:]]+50' "${DIST_DIR}/BUILD-INFO.txt"
     grep -Eq 'GStreamer:[[:space:]]+YES' "${DIST_DIR}/BUILD-INFO.txt"
     grep -Eq 'v4l/v4l2:[[:space:]]+YES' "${DIST_DIR}/BUILD-INFO.txt"
+    grep -Eq 'FFMPEG:[[:space:]]+YES' "${DIST_DIR}/BUILD-INFO.txt"
+    grep -Eq 'GUI:[[:space:]]+GTK3' "${DIST_DIR}/BUILD-INFO.txt"
+    grep -Eq 'Parallel framework:[[:space:]]+TBB' "${DIST_DIR}/BUILD-INFO.txt"
 
     "${CUDA_ROOT}/bin/cuobjdump" --list-elf "${cuda_library}" | tee "${DIST_DIR}/CUDA-CUBINS.txt"
     grep -q 'sm_50.cubin' "${DIST_DIR}/CUDA-CUBINS.txt"
